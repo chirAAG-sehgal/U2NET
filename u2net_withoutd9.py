@@ -502,3 +502,151 @@ class U2NET(nn.Module):
 
         return F.sigmoid(d0), F.sigmoid(d9), F.sigmoid(d8), F.sigmoid(d7), F.sigmoid(d6), F.sigmoid(d5),
          
+
+class Block1_new(nn.Module):
+    def __init__(self):
+        super(Block1_new, self).__init__()
+        self.convin = RBC(3, 64)
+        self.rbc1 = RBC(64, 32)
+        self.maxpool12 = nn.MaxPool2d(kernel_size = 2, stride = 2, ceil_mode=True)
+        self.rbc2 = RBC(32, 32)
+        self.maxpool23 = nn.MaxPool2d(kernel_size = 2, stride = 2, ceil_mode=True)
+        self.rbc3 = RBC(32, 32)
+        self.maxpool34 = nn.MaxPool2d(kernel_size = 2, stride =2, ceil_mode=True)
+        self.rbc4 = RBC(32,32)
+        self.maxpool45 = nn.MaxPool2d(kernel_size = 2, stride =2, ceil_mode=True)
+        self.rbc5 = RBC(32,32)
+        self.maxpool56 = nn.MaxPool2d(kernel_size = 2, stride = 2, ceil_mode=True)
+        self.rbc6 = RBC(32, 32)
+        self.rbc7 = RBC(32,32, dirate = 2)
+
+        self.rbc6d = RBC(64,32)
+        self.rbc5d = RBC(64,32)
+        self.rbc4d = RBC(64,32)
+        self.rbc3d = RBC(64,32)
+        self.rbc2d = RBC(64,32)
+        self.rbc1d = RBC(64,64)
+    
+    def forward(self, x):
+        hx = x
+        hxin = self.convin(hx)
+        hx1 = self.rbc1(hxin)
+        hx1h = self.maxpool12(hx1)
+
+
+        hx2 = self.rbc2(hx1h)
+        hx2h = self.maxpool23(hx2)
+
+        hx3 = self.rbc3(hx2h)
+        hx3h = self.maxpool34(hx3)
+
+        hx4 = self.rbc4(hx3h)
+        hx4h = self.maxpool45(hx4)
+
+        hx5 = self.rbc5(hx4h)
+        hx5h = self.maxpool56(hx5)
+
+        hx6 = self.rbc6(hx5h)
+        hx7 = self.rbc7(hx6)
+        
+        hx6d = self.rbc6d(torch.cat((hx6, hx7),1))
+        hx = upsample(hx6d, hx5)
+        hx5d = self.rbc5d(torch.cat((hx5, hx), 1))
+
+        hx = upsample(hx5d, hx4)
+        hx4d = self.rbc4d(torch.cat((hx4, hx), 1))
+
+        hx = upsample(hx4d, hx3)
+        hx3d = self.rbc3d(torch.cat((hx3, hx), 1))
+
+        hx = upsample(hx3d, hx2)
+        hx2d = self.rbc2d(torch.cat((hx2, hx), 1))
+
+        hx = upsample(hx2d, hx1)
+        hx1d = self.rbc1d(torch.cat((hx1, hx), 1))
+        
+        decoder_outputs = {'6d': hx6d, '5d':hx5d, '4d':hx4d, '3d':hx3d, '2d':hx2d, 'output':hx1d+hxin}
+
+        return decoder_outputs
+    
+
+class Block9_new(nn.Module):
+    def __init__(self):
+        super(Block9_new, self).__init__()
+        self.convin = RBC(64, 1)
+        self.rbc1 = RBC(1, 32)
+        self.maxpool12 = nn.MaxPool2d(kernel_size = 2, stride = 2, ceil_mode=True)
+        self.rbc2 = RBC(64, 32)
+        self.maxpool23 = nn.MaxPool2d(kernel_size = 2, stride = 2, ceil_mode=True)
+        self.rbc3 = RBC(64, 32)
+        self.maxpool34 = nn.MaxPool2d(kernel_size = 2, stride =2, ceil_mode=True)
+        self.rbc4 = RBC(64,32)
+        self.maxpool45 = nn.MaxPool2d(kernel_size = 2, stride =2, ceil_mode=True)
+        self.rbc5 = RBC(64,32)
+        self.maxpool56 = nn.MaxPool2d(kernel_size = 2, stride = 2, ceil_mode=True)
+        self.rbc6 = RBC(64, 32)
+        self.rbc7 = RBC(32,32, dirate = 2)
+
+        self.rbc6d = RBC(64,32)
+        self.rbc5d = RBC(64,32)
+        self.rbc4d = RBC(64,32)
+        self.rbc3d = RBC(64,32)
+        self.rbc2d = RBC(64, 32)
+        self.c1d = nn.Conv2d(64, 1, kernel_size = 3, padding=1)
+        self.b1d = nn.BatchNorm2d(1)
+        self.ReLu = nn.ReLU(True)
+        
+    
+    def forward(self, x):
+        x_skip = x
+        hx = x_skip['output']
+        hxin = self.convin(hx)
+        hx1 = self.rbc1(hxin)
+        hx1h = self.maxpool12(hx1) #144 hx1h
+
+
+        hx2 = self.rbc2(torch.cat((hx1h, x_skip['2d']), 1))   
+        hx2h = self.maxpool23(hx2) #72
+
+        hx3 = self.rbc3(torch.cat((hx2h, x_skip['3d']), 1))
+        hx3h = self.maxpool34(hx3) #36
+
+        hx4 = self.rbc4(torch.cat((hx3h, x_skip['4d']), 1))
+        hx4h = self.maxpool45(hx4) #18
+
+        hx5 = self.rbc5(torch.cat((hx4h, x_skip['5d']), 1))
+        hx5h = self.maxpool56(hx5) #9
+
+        hx6 = self.rbc6(torch.cat((hx5h, x_skip['6d']), 1))
+        hx7 = self.rbc7(hx6)
+        
+        hx6d = self.rbc6d(torch.cat((hx6, hx7),1))
+        hx = upsample(hx6d, hx5)
+        hx5d = self.rbc5d(torch.cat((hx5, hx), 1))
+
+        hx = upsample(hx5d, hx4)
+        hx4d = self.rbc4d(torch.cat((hx4, hx), 1))
+
+        hx = upsample(hx4d, hx3)
+        hx3d = self.rbc3d(torch.cat((hx3, hx), 1))
+
+        hx = upsample(hx3d, hx2)
+        hx2d = self.rbc2d(torch.cat((hx2, hx), 1))
+
+        hx = upsample(hx2d, hx1)
+        hx1d_output = self.ReLu(self.b1d(self.c1d(torch.cat((hx1, hx), 1))))
+
+        return hx1d_output
+    
+class UUNET(nn.Module):
+    def __init__(self):
+        super(UUNET, self).__init__()
+        self.block1 = Block1_new()
+        self.block9 = Block9_new()
+
+    def forward(self, x):
+        hx = x
+        hx1= self.block1(hx)
+        hx2 = self.block9(hx1)
+
+        return F.sigmoid(hx2)
